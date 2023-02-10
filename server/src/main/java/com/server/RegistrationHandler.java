@@ -8,6 +8,9 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import com.sun.net.httpserver.*;
 
 public class RegistrationHandler implements HttpHandler {
@@ -23,6 +26,7 @@ public class RegistrationHandler implements HttpHandler {
 
         String responseBody = "";
         int code = 200;
+        JSONObject obj = null;
 
         if (t.getRequestMethod().equals("GET"))
 
@@ -30,62 +34,86 @@ public class RegistrationHandler implements HttpHandler {
             code = 400;
             t.sendResponseHeaders(code, -1);
         } else {
-            // try {
-            if (t.getRequestMethod().equalsIgnoreCase("POST")) {
-                Headers headers = t.getRequestHeaders();
-                String contentType = "";
+            try {
+                if (t.getRequestMethod().equalsIgnoreCase("POST")) {
+                    Headers headers = t.getRequestHeaders();
+                    String contentType = "";
 
-                if (headers.containsKey("Content-Type")) {
-                    contentType = headers.get("Content-Type").get(0);
-                } else {
-                    code = 400;
-                    responseBody = "ei kkontenttia";
-                }
-
-                if (contentType.equalsIgnoreCase("text/plain")) {
-
-                    InputStream stream = t.getRequestBody();
-
-                    String text = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))
-                            .lines().collect(Collectors.joining("\n"));
-
-                    stream.close();
-
-                    if (text == null || text.length() <= 1) {
-                        code = 400;
-                        responseBody = "ei käyttäjätietoja";
-
+                    if (headers.containsKey("Content-Type")) {
+                        contentType = headers.get("Content-Type").get(0);
                     } else {
+                        code = 400;
+                        responseBody = "ei kkontenttia";
+                    }
 
-                        String[] items = text.split(":");
+                    if (contentType.equalsIgnoreCase("application/json")) {
 
-                        if (items[0].trim().length() > 0 && items[1].trim().length() > 0) {
-                            // create account
-                            if (authenticator.addUser(items[0], items[1])) {
-                                t.sendResponseHeaders(code, -1);
-                            } else {
-                                code = 400;
-                                responseBody = "väärät käyttäjätiedot";
-                            }
+                        InputStream stream = t.getRequestBody();
+
+                        String text = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))
+                                .lines().collect(Collectors.joining("\n"));
+
+                        stream.close();
+
+                        if (text == null || text.length() <= 1) {
+                            code = 412;
+                            responseBody = "ei käyttäjätietoja";
 
                         } else {
-                            code = 400;
-                            responseBody = "väärät käyttäjätiedot";
+
+                            try {
+                                obj = new JSONObject(text);
+                            } catch (JSONException e) {
+                                System.out.println("json parse error");
+                            }
+
+                            if (obj.getString("username").length() == 0 || obj.getString("password").length() == 0
+                                    || obj.getString("email").length() == 0) {
+                                code = 413;
+                                responseBody = "ei kunnollisia käyttäjätietoja";
+                            } else {
+                                // create account
+                                Boolean result = (authenticator.addUser(obj.getString("username"),
+                                        obj.getString("password"), obj.getString("email")));
+
+                                if (result == false) {
+                                    code = 405;
+                                    responseBody = "käyttäjä on jo olemassa";
+                                } else {
+                                    code = 200;
+                                    responseBody = "rekisteröity";
+                                }
+
+                            }
                         }
+                        byte[] bytes = responseBody.getBytes("UTF-8");
+                        t.sendResponseHeaders(code, bytes.length);
+                        OutputStream os = t.getResponseBody();
+                        os.write(bytes);
+                        os.flush();
+                        os.close();
+                    } else {
+                        code = 407;
+                        responseBody = "ei oo application/json";
                     }
                 } else {
-                    code = 400;
-                    responseBody = "ei kontenttia";
-
+                    code = 401;
+                    responseBody = "only post";
                 }
+            } catch (Exception e) {
+                System.out.println(e.getStackTrace());
+                code = 500;
+                System.out.println("virhe");
             }
-            if (code < 200 || code > 299) {
+
+            if (code >= 400) {
                 byte[] bytes = responseBody.getBytes("UTF-8");
                 t.sendResponseHeaders(code, bytes.length);
                 OutputStream os = t.getResponseBody();
                 os.write(bytes);
                 os.flush();
                 os.close();
+
             }
         }
     }

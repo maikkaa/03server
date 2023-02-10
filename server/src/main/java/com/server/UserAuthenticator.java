@@ -1,38 +1,36 @@
 package com.server;
 
-import java.util.Hashtable;
-import java.util.Map;
+import java.util.ArrayList;
 import com.sun.net.httpserver.BasicAuthenticator;
 
 public class UserAuthenticator extends BasicAuthenticator {
 
-    private Map<String, String> users = null;
+    private ArrayList<User> users = null;
 
     public UserAuthenticator() {
         super("warning");
-
-        users = new Hashtable<String, String>();
-        users.put("dummy", "passwd");
-
+        users = new ArrayList<User>();
+        
     }
 
     @Override
     public boolean checkCredentials(String username, String password) {
-
-        if (users.get(username).contains(password)) {
-            return true;
-        } else {
-            return false;
+        for (int i = 0; i < users.size(); i++) {
+            if (users.get(i).getUsername().equals(username) && users.get(i).getPassword().equals(password)) {
+                return true;
+            }
         }
+        return false;
     }
 
-    public boolean addUser(String userName, String password) {
-
-        if (!users.containsKey(userName)) {
-            users.put(userName, password);
-            return true;
-        } else {
-            return false;
+    public boolean addUser(String username, String password, String email) {
+        for (int i = 0; i < users.size(); i++) {
+            if (users.get(i).getUsername().equals(username)) {
+                return false;
+            }
         }
+        User user = new User(username, password, email);
+        users.add(user);
+        return true;
     }
 }

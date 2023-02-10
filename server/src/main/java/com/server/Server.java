@@ -12,12 +12,17 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.TrustManagerFactory;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.*;
 
 public class Server implements HttpHandler {
 
     StringBuilder textDump = new StringBuilder("");
-    ArrayList<String> lista = new ArrayList<String>();
+    ArrayList<WarningMessage> lista = new ArrayList<WarningMessage>();
+    JSONArray lista2 = new JSONArray();
 
     @Override
     public void handle(HttpExchange t) throws IOException {
@@ -117,11 +122,11 @@ public class Server implements HttpHandler {
         // return httpExchange.getRequestURI().toString().split("\\?")[1].split("=")[1];
 
         String response = "";
-        for (String j : lista) {
-            response += j + "\n";
-
+        for (WarningMessage j : lista) {
+            response += j.toString() + "\n";
+            lista2.put(j.json());
         }
-        return response;
+        return lista2.toString();
 
     }
 
@@ -131,15 +136,20 @@ public class Server implements HttpHandler {
                 .lines().collect(Collectors.joining("\n"));
 
         // textDump.append(text);
-        lista.add(text);
-
+        try {
+            // tekstistä json objecti
+            JSONObject teksti = new JSONObject(text);
+            WarningMessage msg = new WarningMessage(teksti);
+            lista.add(msg);
+        } catch (JSONException e) {
+            System.out.println(e);
+        }
     }
 
     public static void main(String[] args) throws Exception {
         try {
 
-
-            // tee http serveri portille 8001
+            // tee https serveri portille 8001
 
             HttpsServer server = HttpsServer.create(new InetSocketAddress(8001), 0);
             SSLContext sslContext = serverSSLContext(args[0], args[1]);
