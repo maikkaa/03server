@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.util.stream.Collectors;
 
 import org.json.JSONException;
@@ -16,6 +17,7 @@ import com.sun.net.httpserver.*;
 public class RegistrationHandler implements HttpHandler {
 
     UserAuthenticator authenticator = null;
+    MessageDatabase db = null;
 
     public RegistrationHandler(UserAuthenticator authentication) {
         authenticator = authentication;
@@ -31,7 +33,7 @@ public class RegistrationHandler implements HttpHandler {
         if (t.getRequestMethod().equals("GET"))
 
         {
-            code = 400;
+            code = 402;
             t.sendResponseHeaders(code, -1);
         } else {
             try {
@@ -42,7 +44,7 @@ public class RegistrationHandler implements HttpHandler {
                     if (headers.containsKey("Content-Type")) {
                         contentType = headers.get("Content-Type").get(0);
                     } else {
-                        code = 400;
+                        code = 401;
                         responseBody = "ei kkontenttia";
                     }
 
@@ -77,14 +79,14 @@ public class RegistrationHandler implements HttpHandler {
                                         obj.getString("password"), obj.getString("email")));
 
                                 if (result == false) {
-                                    code = 405;
+                                    code = 415;
                                     responseBody = "käyttäjä on jo olemassa";
                                 } else {
                                     code = 200;
                                     responseBody = "rekisteröity";
                                 }
-
-                            }
+                            }       
+                            
                         }
                         byte[] bytes = responseBody.getBytes("UTF-8");
                         t.sendResponseHeaders(code, bytes.length);
@@ -100,10 +102,12 @@ public class RegistrationHandler implements HttpHandler {
                     code = 401;
                     responseBody = "only post";
                 }
-            } catch (Exception e) {
+
+
+            } catch (SQLException e) {
                 System.out.println(e.getStackTrace());
                 code = 500;
-                System.out.println("virhe");
+                System.out.println("VIRHE!!!!!!!!!!!");
             }
 
             if (code >= 400) {

@@ -1,36 +1,42 @@
 package com.server;
 
-import java.util.ArrayList;
+import java.sql.SQLException;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import com.sun.net.httpserver.BasicAuthenticator;
 
 public class UserAuthenticator extends BasicAuthenticator {
 
-    private ArrayList<User> users = null;
+    private MessageDatabase db = null;
 
     public UserAuthenticator() {
         super("warning");
-        users = new ArrayList<User>();
-        
+        db = MessageDatabase.getInstance();
     }
 
     @Override
     public boolean checkCredentials(String username, String password) {
-        for (int i = 0; i < users.size(); i++) {
-            if (users.get(i).getUsername().equals(username) && users.get(i).getPassword().equals(password)) {
-                return true;
-            }
+
+        boolean isValidUser;
+        try {
+            isValidUser = db.authenticateUser(username, password);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
         }
-        return false;
+        return isValidUser;
     }
 
-    public boolean addUser(String username, String password, String email) {
-        for (int i = 0; i < users.size(); i++) {
-            if (users.get(i).getUsername().equals(username)) {
-                return false;
-            }
+    public boolean addUser(String username, String password, String email) throws JSONException, SQLException {
+
+        boolean result = db
+                .setUser(new JSONObject().put("username", username).put("password", password).put("email", email));
+
+        if (!result) {
+            return false;
         }
-        User user = new User(username, password, email);
-        users.add(user);
         return true;
     }
 }

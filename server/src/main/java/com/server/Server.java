@@ -4,7 +4,7 @@ import com.sun.net.httpserver.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
-import java.util.ArrayList;
+import java.sql.SQLException;
 import java.util.stream.Collectors;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -12,7 +12,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.TrustManagerFactory;
 
-import org.json.JSONArray;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -21,24 +21,29 @@ import java.io.*;
 public class Server implements HttpHandler {
 
     StringBuilder textDump = new StringBuilder("");
-    ArrayList<WarningMessage> lista = new ArrayList<WarningMessage>();
-    JSONArray lista2 = new JSONArray();
+    private MessageDatabase db = MessageDatabase.getInstance();
 
     @Override
     public void handle(HttpExchange t) throws IOException {
-
         String requestParamValue = null;
 
         if (t.getRequestMethod().equals("POST")) {
 
-            handlePOSTRequest(t);
+            try {
+                handlePOSTRequest(t);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
             handleResponsePOST(t);
 
         } else if (t.getRequestMethod().equals("GET")) {
 
-            requestParamValue = handleGetRequest(t);
+            try {
+                requestParamValue = handleGetRequest(t);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
             handleResponseGET(t, requestParamValue);
-
         } else {
             handleResponse400(t, "not supported");
         }
@@ -117,30 +122,29 @@ public class Server implements HttpHandler {
 
     }
 
-    private String handleGetRequest(HttpExchange httpExchange) throws IOException {
+    private String handleGetRequest(HttpExchange httpExchange) throws IOException, SQLException {
 
-        // return httpExchange.getRequestURI().toString().split("\\?")[1].split("=")[1];
-
-        String response = "";
-        for (WarningMessage j : lista) {
-            response += j.toString() + "\n";
-            lista2.put(j.json());
-        }
-        return lista2.toString();
+        return db.getMessages().toString();
 
     }
 
-    private void handlePOSTRequest(HttpExchange httpExchange) {
+    private void handlePOSTRequest(HttpExchange httpExchange) throws IOException, SQLException {
 
         String text = new BufferedReader(new InputStreamReader(httpExchange.getRequestBody(), StandardCharsets.UTF_8))
                 .lines().collect(Collectors.joining("\n"));
-
-        // textDump.append(text);
         try {
             // tekstistä json objecti
             JSONObject teksti = new JSONObject(text);
-            WarningMessage msg = new WarningMessage(teksti);
-            lista.add(msg);
+            // tarkista että onhan tekstin latitude ja longitude doubleja & onko "sent" oikeassa muodossa
+            if (!Double.isNaN(teksti.optDouble("latitude")) && !Double.isNaN(teksti.optDouble("longitude"))  && teksti.optString("sent") != null && teksti.optString("sent").matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d{3}Z")) {
+                // luo tekstistä warningmessage ja laita se databaseen jsonobjectina
+                WarningMessage msg = new WarningMessage(teksti);
+                db.setMessage(msg.json());
+                httpExchange.sendResponseHeaders(200, 0);
+            } else {
+                httpExchange.sendResponseHeaders(469, 0);
+                System.out.println("ei oo double");
+            }
         } catch (JSONException e) {
             System.out.println(e);
         }
@@ -152,7 +156,8 @@ public class Server implements HttpHandler {
             // tee https serveri portille 8001
 
             HttpsServer server = HttpsServer.create(new InetSocketAddress(8001), 0);
-            SSLContext sslContext = serverSSLContext(args[0], args[1]);
+            SSLContext sslContext = serverSSLContext("C:/users/MIKA/keystore.jks", "lol123");
+            // SSLContext sslContext = serverSSLContext(args[0], args[1]);
             server.setHttpsConfigurator(new HttpsConfigurator(sslContext) {
                 public void configure(HttpsParameters params) {
                     InetSocketAddress remote = params.getClientAddress();
