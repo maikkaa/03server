@@ -1,3 +1,3 @@
 # 03server
 kouluhommija
-keskeneräsiä
+pitäs olla valamis
