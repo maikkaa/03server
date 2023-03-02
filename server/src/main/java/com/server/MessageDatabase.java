@@ -1,5 +1,6 @@
 package com.server;
 
+import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
@@ -7,7 +8,9 @@ import java.sql.SQLException;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
+import java.util.Base64;
 
+import org.apache.commons.codec.digest.Crypt;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -15,7 +18,6 @@ public class MessageDatabase {
 
     private Connection dbConnection = null;
     private static MessageDatabase dbInstance = null;
-    JSONArray messages = new JSONArray();
 
     public static synchronized MessageDatabase getInstance() {
         if (dbInstance == null) {
@@ -40,7 +42,7 @@ public class MessageDatabase {
 
         if (null != dbConnection) {
             String createUserTable = "create table users (nickname varchar(50) NOT NULL, password varchar(50) NOT NULL, email varchar(50), primary key(nickname))";
-            String createMessageTable = "create table messages (longitude double NOT NULL, latitude double NOT NULL, nickname varchar(50) NOT NULL, dangertype varchar(50) NOT NULL, sent INTEGER NOT NULL)";
+            String createMessageTable = "create table messages (longitude double NOT NULL, latitude double NOT NULL, nickname varchar(50) NOT NULL, dangertype varchar(50) NOT NULL, sent INTEGER NOT NULL, phonenumber varchar(10), areacode varchar(10))";
             Statement createStatement = dbConnection.createStatement();
             createStatement.executeUpdate(createUserTable);
             createStatement.executeUpdate(createMessageTable);
@@ -62,8 +64,15 @@ public class MessageDatabase {
         if (checkIfUserExists(user.getString("username"))) {
             return false;
         }
+        SecureRandom strongRandomNumberGenerator = new SecureRandom();
+        byte bytes[] = new byte[13];
+        strongRandomNumberGenerator.nextBytes(bytes);
+        String saltBytes = new String(Base64.getEncoder().encode(bytes));
+        String salt = "$6$" + saltBytes;
+        String passu = user.getString("password");
+        String hashedPassword = Crypt.crypt(passu, salt);
         String setUserString = "insert into users " +
-                "VALUES('" + user.getString("username") + "','" + user.getString("password") + "','"
+                "VALUES('" + user.getString("username") + "','" + hashedPassword + "','"
                 + user.getString("email") + "')";
         Statement createStatement;
         createStatement = dbConnection.createStatement();
@@ -111,8 +120,7 @@ public class MessageDatabase {
         } else {
 
             String pass = rs.getString("password");
-
-            if (pass.equals(givenPassword)) {
+            if (pass.equals(Crypt.crypt(givenPassword, pass))) {
                 return true;
 
             } else {
@@ -127,18 +135,19 @@ public class MessageDatabase {
     public void setMessage(JSONObject message) throws SQLException {
 
         if (null != dbConnection) {
-
-            String setMessageString = "insert into messages " +
-                    "VALUES('" + message.getDouble("longitude") + "','" + message.getDouble("latitude") + "','"
-                    + message.getString("nickname") + "','" + message.getString("dangertype") + "','"
-                    + message.getLong("sent") + "')";
-
-            Statement createStatement;
-            createStatement = dbConnection.createStatement();
-            createStatement.executeUpdate(setMessageString);
-            createStatement.close();
-
+            if (message.has("phonenumber") && message.has("areacode")) {
+                String setMessageString = "insert into messages " +
+                        "VALUES('" + message.getDouble("longitude") + "','" + message.getDouble("latitude") + "','"
+                        + message.getString("nickname") + "','" + message.getString("dangertype") + "','"
+                        + message.getLong("sent") + "','" + message.getString("phonenumber") + "','"
+                        + message.getString("areacode") + "')";
+                Statement createStatement;
+                createStatement = dbConnection.createStatement();
+                createStatement.executeUpdate(setMessageString);
+                createStatement.close();
+            }
         }
+
     }
 
     public JSONArray getMessages() throws SQLException {
@@ -146,18 +155,20 @@ public class MessageDatabase {
         Statement queryStatement = null;
         WarningMessage msg = new WarningMessage();
         JSONArray msgs = new JSONArray();
-        JSONObject obj = new JSONObject();
-        String getMessagesString = "select nickname, dangertype, sent, longitude, latitude from messages ";
+
+        String getMessagesString = "select nickname, dangertype, sent, longitude, latitude, phonenumber, areacode from messages where phonenumber is not null and areacode is not null ";
 
         queryStatement = dbConnection.createStatement();
         ResultSet rs = queryStatement.executeQuery(getMessagesString);
 
         while (rs.next()) {
+            JSONObject obj = new JSONObject();
+
             obj.put("nickname", rs.getString("nickname"));
             obj.put("dangertype", rs.getString("dangertype"));
 
             long timestamp = rs.getLong("sent");
-            /* msg.setSent(timestamp); */
+            msg.setSent(timestamp);
 
             Date j = new Date(timestamp);
             SimpleDateFormat format = new SimpleDateFormat("yyy-MM-dd'T'HH:mm:ss.SSSX");
@@ -166,8 +177,17 @@ public class MessageDatabase {
             obj.put("sent", date);
             obj.put("longitude", rs.getDouble("longitude"));
             obj.put("latitude", rs.getDouble("latitude"));
+
+            String numero = rs.getString("phonenumber");
+            String koodi = rs.getString("areacode");
+            if (!numero.isEmpty() && !koodi.isEmpty()) {
+                obj.put("phonenumber", rs.getString("phonenumber"));
+                obj.put("areacode", rs.getString("areacode"));
+
+            }
             msgs.put(obj);
         }
         return msgs;
+
     }
 }

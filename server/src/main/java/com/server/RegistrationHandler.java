@@ -68,13 +68,13 @@ public class RegistrationHandler implements HttpHandler {
                             } catch (JSONException e) {
                                 System.out.println("json parse error");
                             }
-
+                            // tarkista eihän tiedot ole tyhjiä
                             if (obj.getString("username").length() == 0 || obj.getString("password").length() == 0
                                     || obj.getString("email").length() == 0) {
                                 code = 413;
                                 responseBody = "ei kunnollisia käyttäjätietoja";
                             } else {
-                                // create account
+                                // luo account
                                 Boolean result = (authenticator.addUser(obj.getString("username"),
                                         obj.getString("password"), obj.getString("email")));
 

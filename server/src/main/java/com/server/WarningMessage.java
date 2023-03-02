@@ -17,13 +17,19 @@ public class WarningMessage {
     private Double longitude;
     private String dangertype;
     private LocalDateTime sent;
+    private String phonenumber;
+    private String areacode;
 
-    public WarningMessage(String nickname, Double latitude, Double longitude, String dangertype, LocalDateTime sent) {
+    public WarningMessage(String nickname, Double latitude, Double longitude, String dangertype, LocalDateTime sent,
+            String phonenumber, String areacode) {
         this.nickname = nickname;
         this.latitude = latitude;
         this.longitude = longitude;
         this.dangertype = dangertype;
         this.sent = sent;
+        this.phonenumber = phonenumber;
+        this.areacode = areacode;
+
     }
 
     public WarningMessage() {
@@ -31,13 +37,16 @@ public class WarningMessage {
     }
 
     public WarningMessage(JSONObject text) {
-
         this.nickname = text.getString("nickname");
         this.latitude = text.getDouble("latitude");
         this.longitude = text.getDouble("longitude");
         this.dangertype = text.getString("dangertype");
         this.sent = LocalDateTime.parse(text.getString("sent"),
                 DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX"));
+
+        this.phonenumber = text.optString("phonenumber");
+        this.areacode = text.optString("areacode");
+
     }
 
     public long dateAsInt() {
@@ -88,11 +97,14 @@ public class WarningMessage {
 
     public JSONObject json() throws SQLException {
         JSONObject json = new JSONObject();
+
         json.put("nickname", nickname);
         json.put("latitude", latitude);
         json.put("longitude", longitude);
         json.put("dangertype", dangertype);
         json.put("sent", dateAsInt());
+        json.put("phonenumber", phonenumber);
+        json.put("areacode", areacode);
         return json;
     }
 }

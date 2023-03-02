@@ -5,13 +5,13 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.sql.SQLException;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.TrustManagerFactory;
-
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -26,6 +26,8 @@ public class Server implements HttpHandler {
     @Override
     public void handle(HttpExchange t) throws IOException {
         String requestParamValue = null;
+
+        System.out.println("Request handled in thread " + Thread.currentThread().getId());
 
         if (t.getRequestMethod().equals("POST")) {
 
@@ -123,9 +125,7 @@ public class Server implements HttpHandler {
     }
 
     private String handleGetRequest(HttpExchange httpExchange) throws IOException, SQLException {
-
         return db.getMessages().toString();
-
     }
 
     private void handlePOSTRequest(HttpExchange httpExchange) throws IOException, SQLException {
@@ -134,19 +134,33 @@ public class Server implements HttpHandler {
                 .lines().collect(Collectors.joining("\n"));
         try {
             // tekstistä json objecti
-            JSONObject teksti = new JSONObject(text);
-            // tarkista että onhan tekstin latitude ja longitude doubleja & onko "sent" oikeassa muodossa
-            if (!Double.isNaN(teksti.optDouble("latitude")) && !Double.isNaN(teksti.optDouble("longitude"))  && teksti.optString("sent") != null && teksti.optString("sent").matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d{3}Z")) {
+
+                JSONObject teksti = new JSONObject(text);
+
+            // tarkista että onhan tekstin latitude ja longitude doubleja & onko "sent"
+            // oikeassa muodossa jne muut
+            if (!Double.isNaN(teksti.optDouble("latitude")) && !Double.isNaN(teksti.optDouble("longitude"))
+                    && teksti.optString("sent") != null
+                    && teksti.optString("sent").matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d{3}Z")
+                    && teksti.optString("dangertype").equals("Deer")
+                    || teksti.optString("dangertype").equals("Moose")
+                    || teksti.optString("dangertype").equals("Reindeer") && teksti.optString("sent").matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d{3}Z")
+                    || teksti.optString("dangertype").equals("Other")) {
                 // luo tekstistä warningmessage ja laita se databaseen jsonobjectina
+                System.out.println(teksti);
+
                 WarningMessage msg = new WarningMessage(teksti);
                 db.setMessage(msg.json());
                 httpExchange.sendResponseHeaders(200, 0);
+                    
+
             } else {
                 httpExchange.sendResponseHeaders(469, 0);
                 System.out.println("ei oo double");
             }
         } catch (JSONException e) {
-            System.out.println(e);
+            System.out.println(e + " hääääääääääääääääää");
+            httpExchange.sendResponseHeaders(407, 0);
         }
     }
 
@@ -156,8 +170,8 @@ public class Server implements HttpHandler {
             // tee https serveri portille 8001
 
             HttpsServer server = HttpsServer.create(new InetSocketAddress(8001), 0);
-            SSLContext sslContext = serverSSLContext("C:/users/MIKA/keystore.jks", "lol123");
-            // SSLContext sslContext = serverSSLContext(args[0], args[1]);
+            //SSLContext sslContext = serverSSLContext("C:/users/MIKA/keystore.jks", "lol123");
+            SSLContext sslContext = serverSSLContext(args[0], args[1]);
             server.setHttpsConfigurator(new HttpsConfigurator(sslContext) {
                 public void configure(HttpsParameters params) {
                     InetSocketAddress remote = params.getClientAddress();
@@ -179,7 +193,7 @@ public class Server implements HttpHandler {
             server.createContext("/registration", new RegistrationHandler(authentication));
 
             // defaultti juttu
-            server.setExecutor(null);
+            server.setExecutor(Executors.newCachedThreadPool());
             server.start();
         } catch (IOException e) {
             e.printStackTrace();
